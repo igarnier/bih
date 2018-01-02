@@ -1,0 +1,7 @@
+(jbuild_version 1)
+
+(library
+ ((name        bih)
+  (public_name bih)
+ ; (libraries (batteries owl))
+))

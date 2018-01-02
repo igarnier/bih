@@ -1,0 +1,17 @@
+opam-version: "1.2"
+maintainer: "ilias.gar@gmail.com"
+authors: ["Ilias Garnier"]
+homepage: "https://github.com/igarnier/bih"
+bug-reports: "https://github.com/igarnier/bih/issues"
+dev-repo: "git+https://github.com/igarnier/bih.git"
+license: "MIT"
+build: [
+  ["jbuilder" "build" "-p" name "-j" jobs]
+]
+depends: [
+  "jbuilder"                {build & >= "1.0+beta8"}
+]
+available: [ ocaml-version >= "4.04.1" ]
+descr: "
+Library to construct and traverse bounding interval hierarchies (BIHs) in arbitrary (but finite) dimensions.
+"
