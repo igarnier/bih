@@ -46,3 +46,14 @@ let copy { mins; maxs } =
     mins = Array.copy mins;
     maxs = Array.copy maxs
   }
+
+let mem pt { mins; maxs } =
+  let acc = ref true in
+  let idx = ref 0 in
+  let len = Array.length pt in
+  while !acc && !idx < len do
+    let i = !idx in
+    acc := !acc && mins.(i) <= pt.(i) && pt.(i) <= maxs.(i);
+    incr idx
+  done;
+  !acc

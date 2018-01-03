@@ -12,16 +12,24 @@ end
 module Make(E : EltType) =
 struct
 
-  type tri_index = int
+  type obj_index = int
   type dim       = int
 
   type node =
-    | Leaf of { start : tri_index; stop : tri_index }
+    | Leaf of { start : obj_index; stop : obj_index }
     | Node of { axis      : dim
               ; leftclip  : float
               ; rightclip : float
               ; left      : node
               ; right     : node }
+
+  let index_of_max (array : float array) =
+    let max = ref 0 in
+    for i = 1 to Array.length array - 1 do
+      if array.(i) > array.(!max) then
+        max := i
+    done;
+    !max
 
   let index_of_max (array : float array) =
     if array.(0) > array.(1) then
@@ -32,13 +40,6 @@ struct
     if array.(1) > array.(2)
     then 1
     else 2
-
-  type partition_outcome =
-    | Trying
-    | Stuck
-    | RecurseRight
-    | RecurseLeft
-    | RecurseBoth
 
   let fmin (x : float) (y : float) =
     if x > y then y else x
@@ -144,5 +145,31 @@ struct
       in
       continue maxdim
 
+  let collect_matching_objects bboxes start stop pt acc =
+    let rec loop i acc =
+      if i = stop then
+        acc
+      else if Aabb.mem pt bboxes.(i) then
+        loop (i+1) (i :: acc)
+      else
+        loop (i+1) acc
+    in
+    loop start acc
+
+  let rec find_all_intersections pt bboxes tree acc =
+    match tree with
+    | Leaf { start; stop } ->
+      collect_matching_objects bboxes start stop pt acc
+    | Node { axis; leftclip; rightclip; left; right } ->
+      if pt.(axis) < leftclip then
+        if pt.(axis) < rightclip then
+          find_all_intersections pt bboxes left acc
+        else
+          let acc = find_all_intersections pt bboxes left acc in
+          find_all_intersections pt bboxes right acc          
+      else if pt.(axis) >= rightclip then
+        find_all_intersections pt bboxes right acc
+      else
+        acc
 
 end
