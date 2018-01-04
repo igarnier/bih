@@ -31,16 +31,6 @@ struct
     done;
     !max
 
-  let index_of_max (array : float array) =
-    if array.(0) > array.(1) then
-      if array.(0) > array.(2)
-      then 0
-      else 2
-    else
-    if array.(1) > array.(2)
-    then 1
-    else 2
-
   let fmin (x : float) (y : float) =
     if x > y then y else x
 
