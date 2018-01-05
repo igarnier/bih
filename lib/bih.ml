@@ -1,10 +1,16 @@
 open Printf
 
+module Aabb = Aabb
+
 module type EltType = 
 sig
 
   type t
 
+  (** It is assumed that all objects have [dim]-dimensional bounding boxes. *)
+  val dim : int
+
+  (** [extents x] returns the axis-aligned bounding box of [x]. *)
   val extents : t -> Aabb.t
 
 end
@@ -17,11 +23,18 @@ struct
 
   type node =
     | Leaf of { start : obj_index; stop : obj_index }
-    | Node of { axis      : dim
-              ; leftclip  : float
-              ; rightclip : float
+    | Node of { axis      : dim     (** Dimension along which we are splitting the objects. *)
+              ; leftclip  : float   (** all the left children are in the interval (-infty, leftclip]. *)
+              ; rightclip : float   (** all the right children are in the interval [rightclip, +infty). *)
               ; left      : node
               ; right     : node }
+
+  type state =
+    { objects : E.t array    (** Objects being inserted into the BIH. *)
+    ; index   : int array    (** The tree maps into the [index] array, in order to avoid mutating pointers. *)
+    ; boxes   : Aabb.t array (** Stores bounding boxes of the objects. *)
+    ; box     : Aabb.t       (** Global bounding box. *)
+    }
 
   let index_of_max (array : float array) =
     let max = ref 0 in
@@ -135,31 +148,44 @@ struct
       in
       continue maxdim
 
-  let collect_matching_objects bboxes start stop pt acc =
-    let rec loop i acc =
+  (** Build the BIH. *)
+  let build leaf_bound objects =
+    let len   = Array.length objects in
+    let index = Array.init len (fun i -> i) in
+    let boxes = Array.map E.extents objects in
+    let box   = Array.fold_left Aabb.join (Aabb.empty E.dim) boxes in
+    let tree  = compute_bih leaf_bound objects boxes box index 0 (len - 1) in
+    ({ objects; index; boxes; box }, tree)
+
+  let collect_matching_objects state start stop pt acc =
+    let rec loop ({ index; boxes; objects } as state) i acc =
       if i = stop then
         acc
-      else if Aabb.mem pt bboxes.(i) then
-        loop (i+1) (i :: acc)
+      else if Aabb.mem pt boxes.(index.(i)) then
+        loop state (i+1) (objects.(index.(i)) :: acc)
       else
-        loop (i+1) acc
+        loop state (i+1) acc
     in
-    loop start acc
+    loop state start acc
 
-  let rec find_all_intersections pt bboxes tree acc =
-    match tree with
-    | Leaf { start; stop } ->
-      collect_matching_objects bboxes start stop pt acc
-    | Node { axis; leftclip; rightclip; left; right } ->
-      if pt.(axis) < leftclip then
-        if pt.(axis) < rightclip then
-          find_all_intersections pt bboxes left acc
+  let find_all_intersections pt state tree =
+    let rec traverse pt state tree acc =
+      match tree with
+      | Leaf { start; stop } ->
+        collect_matching_objects state start stop pt acc
+      | Node { axis; leftclip; rightclip; left; right } ->
+        if pt.(axis) < leftclip then
+          if pt.(axis) < rightclip then
+            traverse pt state left acc
+          else
+            let acc = traverse pt state left acc in
+            traverse pt state right acc          
+        else if pt.(axis) >= rightclip then
+          traverse pt state right acc
         else
-          let acc = find_all_intersections pt bboxes left acc in
-          find_all_intersections pt bboxes right acc          
-      else if pt.(axis) >= rightclip then
-        find_all_intersections pt bboxes right acc
-      else
-        acc
+          acc
+    in
+    traverse pt state tree []
+
 
 end

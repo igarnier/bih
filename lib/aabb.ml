@@ -26,7 +26,6 @@ let array_max (array1 : float array) (array2 : float array) =
 let array_sub (array1 : float array) (array2 : float array) =
   Array.map2 (-.) array1 array2
 
-
 let empty n =
   {
     mins = Array.make n max_float;
