@@ -1,0 +1,10 @@
+(jbuild_version 1)
+
+(executables
+ ((names (raytracer))
+  (libraries (batteries gg bih graphics angstrom))))
+
+(alias
+ ((name runtest)
+  (deps    (raytracer.exe))
+  (action (run ${<}))))

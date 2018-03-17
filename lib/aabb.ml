@@ -56,3 +56,19 @@ let mem pt { mins; maxs } =
     incr idx
   done;
   !acc
+
+let print { mins; maxs } =
+  let mins = mins |> Array.to_list |> List.map string_of_float in
+  let mins =
+    List.fold_left (fun acc elt ->
+        acc^";"^elt
+      ) "" mins
+  in
+  let maxs = maxs |> Array.to_list |> List.map string_of_float in
+  let maxs =
+    List.fold_left (fun acc elt ->
+        acc^";"^elt
+      ) "" maxs
+  in
+  Printf.sprintf "{ mins = [%s]; maxs = [%s] }" mins maxs
+  

@@ -1,6 +1,25 @@
 open Printf
 
+(** Axis-aligned bounding boxes (AABBs) *)
 module Aabb = Aabb
+
+(** The BIH tree type. The tree does not directly indexes the data but rather the indices of the
+    data into some array. *)
+type obj_index = int
+type dim       = int
+  
+type node =
+  (** A [Leaf] of the BIH represents a contiguous interval of indices. *)
+  | Leaf of { start : obj_index; stop : obj_index }
+  (** A [Node] of the BIH splits objects along a dimension according to two hyperplanes: 
+      the left one and the right one. Observe that the two corresponding subspace can
+      overlap. This speeds up partitioning at the expense of possibly more work to
+      do when querying the structure. *)
+  | Node of { axis      : dim     (** Dimension along which we are splitting the objects. *)
+            ; leftclip  : float   (** all the left children are in the interval (-infty, leftclip]. *)
+            ; rightclip : float   (** all the right children are in the interval [rightclip, +infty). *)
+            ; left      : node
+            ; right     : node }
 
 module type EltType = 
 sig
@@ -10,24 +29,18 @@ sig
   (** It is assumed that all objects have [dim]-dimensional bounding boxes. *)
   val dim : int
 
-  (** [extents x] returns the axis-aligned bounding box of [x]. *)
-  val extents : t -> Aabb.t
+  (** In practice, the objects being stored in the BIH can make reference to some
+      underlying state. E.g. when considering meshes, one typically describe them
+      as indexing some underlying vertex buffer (which would be the state). *)
+  type state
+
+  (** [extents st x] returns the axis-aligned bounding box of [x] in state [st]. *)
+  val extents : state -> t -> Aabb.t
 
 end
 
 module Make(E : EltType) =
 struct
-
-  type obj_index = int
-  type dim       = int
-
-  type node =
-    | Leaf of { start : obj_index; stop : obj_index }
-    | Node of { axis      : dim     (** Dimension along which we are splitting the objects. *)
-              ; leftclip  : float   (** all the left children are in the interval (-infty, leftclip]. *)
-              ; rightclip : float   (** all the right children are in the interval [rightclip, +infty). *)
-              ; left      : node
-              ; right     : node }
 
   type state =
     { objects : E.t array    (** Objects being inserted into the BIH. *)
@@ -149,10 +162,10 @@ struct
       continue maxdim
 
   (** Build the BIH. *)
-  let build leaf_bound objects =
+  let build state leaf_bound objects =
     let len   = Array.length objects in
     let index = Array.init len (fun i -> i) in
-    let boxes = Array.map E.extents objects in
+    let boxes = Array.map (E.extents state) objects in
     let box   = Array.fold_left Aabb.join (Aabb.empty E.dim) boxes in
     let tree  = compute_bih leaf_bound objects boxes box index 0 (len - 1) in
     ({ objects; index; boxes; box }, tree)
@@ -186,6 +199,5 @@ struct
           acc
     in
     traverse pt state tree []
-
 
 end
