@@ -110,7 +110,7 @@ let main xres yres =
   } in
   let scene  =
     Wavefront.load
-      ~filename:"/home/ilias/sources/raytracer/buddha.wobj"
+      ~filename:Sys.argv.(1)
       ~scale:3.0
       ~material:3
       ~position:[| 0.0; 0.0; 0.0 |]
@@ -130,5 +130,7 @@ let main xres yres =
   done;
   close_graph ()
 
+let _ =
+  Printf.printf "%s\n" (Unix.getcwd ())
 
 let _ = main 800 600
