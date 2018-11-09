@@ -3,5 +3,4 @@
 (library
  ((name        bih)
   (public_name bih)
- ; (libraries (batteries owl))
 ))
