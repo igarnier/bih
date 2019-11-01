@@ -6,10 +6,10 @@ bug-reports: "https://github.com/igarnier/bih/issues"
 dev-repo: "git+https://github.com/igarnier/bih.git"
 license: "MIT"
 build: [
-  ["jbuilder" "build" "-p" name "-j" jobs]
+  ["dune" "build" "-p" name "-j" jobs]
 ]
 depends: [
-  "jbuilder"                {build & >= "1.0+beta8"}
+  "dune"                {build & >= "1.0"}
 ]
 available: [ ocaml-version >= "4.04.1" ]
 descr: "

@@ -1,0 +1,10 @@
+(executables
+ (names raytracer)
+ (libraries gg bih graphics angstrom))
+
+(alias
+ (name runtest)
+ (deps
+  (:< raytracer.exe))
+ (action
+  (run %{<} ./../../../lib_test/buddha.wobj)))
