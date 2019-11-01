@@ -24,7 +24,7 @@ type node =
       overlap. This speeds up partitioning at the expense of possibly more work to
       do when querying the structure. *)
 
-module type EltType = sig
+module type Elt_sig = sig
   type t
 
   (** It is assumed that all objects have [dim]-dimensional bounding boxes. *)
@@ -39,8 +39,31 @@ module type EltType = sig
   val extents : state -> t -> Aabb.t
 end
 
-module Make (E : EltType) = struct
-  type state = {
+module type S = sig
+  type elt
+
+  type state
+
+  type t = {
+    objects : elt array;  (** Objects being inserted into the BIH. *)
+    index : int array;
+        (** The tree maps into the [index] array, in order to avoid mutating pointers. *)
+    boxes : Aabb.t array;  (** Stores bounding boxes of the objects. *)
+    box : Aabb.t;  (** Global bounding box. *)
+  }
+
+  val build : state -> int -> elt array -> t * node
+
+  val find_all_intersections : float array -> t -> node -> elt list
+end
+
+module Make (E : Elt_sig) : S with type elt = E.t and type state = E.state =
+struct
+  type elt = E.t
+
+  type state = E.state
+
+  type t = {
     objects : E.t array;  (** Objects being inserted into the BIH. *)
     index : int array;
         (** The tree maps into the [index] array, in order to avoid mutating pointers. *)
@@ -59,10 +82,6 @@ module Make (E : EltType) = struct
 
   let fmax (x : float) (y : float) = if x > y then x else y
 
-  let imin (x : int) (y : int) = if x > y then y else x
-
-  let imax (x : int) (y : int) = if x > y then x else y
-
   let mindepth = ref max_int
 
   let maxdepth = ref 0
@@ -71,7 +90,7 @@ module Make (E : EltType) = struct
 
   let leafcount = ref 0
 
-  let gather_stats depth =
+  let _gather_stats depth =
     mindepth := min !mindepth depth ;
     maxdepth := max !maxdepth depth ;
     totaldepth := !totaldepth + depth ;
