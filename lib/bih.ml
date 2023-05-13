@@ -8,17 +8,17 @@ type obj_index = int
 type dim = int
 
 type node =
-  | Leaf of {start : obj_index; stop : obj_index}
+  | Leaf of { start : obj_index; stop : obj_index }
       (** A [Leaf] of the BIH represents a contiguous interval of indices. *)
-  | Node of {
-      axis : dim;  (** Dimension along which we are splitting the objects. *)
-      leftclip : float;
-          (** all the left children are in the interval (-infty, leftclip]. *)
-      rightclip : float;
-          (** all the right children are in the interval [rightclip, +infty). *)
-      left : node;
-      right : node;
-    }
+  | Node of
+      { axis : dim;  (** Dimension along which we are splitting the objects. *)
+        leftclip : float;
+            (** all the left children are in the interval (-infty, leftclip]. *)
+        rightclip : float;
+            (** all the right children are in the interval [rightclip, +infty). *)
+        left : node;
+        right : node
+      }
       (** A [Node] of the BIH splits objects along a dimension according to two hyperplanes:
       the left one and the right one. Observe that the two corresponding subspace can
       overlap. This speeds up partitioning at the expense of possibly more work to
@@ -44,13 +44,13 @@ module type S = sig
 
   type state
 
-  type t = {
-    objects : elt array;  (** Objects being inserted into the BIH. *)
-    index : int array;
-        (** The tree maps into the [index] array, in order to avoid mutating pointers. *)
-    boxes : Aabb.t array;  (** Stores bounding boxes of the objects. *)
-    box : Aabb.t;  (** Global bounding box. *)
-  }
+  type t =
+    { objects : elt array;  (** Objects being inserted into the BIH. *)
+      index : int array;
+          (** The tree maps into the [index] array, in order to avoid mutating pointers. *)
+      boxes : Aabb.t array;  (** Stores bounding boxes of the objects. *)
+      box : Aabb.t  (** Global bounding box. *)
+    }
 
   val build : state -> int -> elt array -> t * node
 
@@ -63,13 +63,13 @@ struct
 
   type state = E.state
 
-  type t = {
-    objects : E.t array;  (** Objects being inserted into the BIH. *)
-    index : int array;
-        (** The tree maps into the [index] array, in order to avoid mutating pointers. *)
-    boxes : Aabb.t array;  (** Stores bounding boxes of the objects. *)
-    box : Aabb.t;  (** Global bounding box. *)
-  }
+  type t =
+    { objects : E.t array;  (** Objects being inserted into the BIH. *)
+      index : int array;
+          (** The tree maps into the [index] array, in order to avoid mutating pointers. *)
+      boxes : Aabb.t array;  (** Stores bounding boxes of the objects. *)
+      box : Aabb.t  (** Global bounding box. *)
+    }
 
   let index_of_max (array : float array) =
     let max = ref 0 in
@@ -126,7 +126,7 @@ struct
             lclip
             (fmin box_min rclip)
             (fmin box_min lmin)
-            (fmax box_max rmax) )
+            (fmax box_max rmax))
     in
     loop left_obj right_obj ~-.max_float max_float max_float ~-.max_float
 
@@ -139,14 +139,33 @@ struct
        (through [index]). The bounds are inclusive.
   *)
   let rec compute_bih leaf_bound objects bboxes local_bbox index start stop =
-    if stop - start + 1 <= leaf_bound then Leaf {start; stop}
+    let () = Format.printf "Popping@." in
+    if stop - start + 1 <= leaf_bound then (
+      Format.printf "leaf {%d; %d}@." start stop ;
+      Leaf { start; stop })
     else
       (* cut along the widest extent of the current bbox *)
       let extents = Aabb.extents local_bbox in
       let maxdim = index_of_max extents in
+      let () =
+        Format.printf
+          "exts=%a, maxdim=%d@."
+          (Format.pp_print_list
+             ~pp_sep:(fun fmtr () -> Format.fprintf fmtr ",")
+             Format.pp_print_float)
+          (Array.to_list extents)
+          maxdim
+      in
       let rec continue dim =
         let half_dim =
           (local_bbox.mins.(dim) +. local_bbox.maxs.(dim)) *. 0.5
+        in
+        let () =
+          Format.printf
+            "dim=%d, box=%s, half-dim=%f@."
+            dim
+            (Aabb.print local_bbox)
+            half_dim
         in
         let (left_end, lclip, rclip, lmin, rmax) =
           sort_objects bboxes index half_dim dim start (stop + 1)
@@ -155,18 +174,25 @@ struct
           if rmax < half_dim then (
             let bbox = Aabb.copy local_bbox in
             bbox.Aabb.maxs.(dim) <- half_dim ;
-            compute_bih leaf_bound objects bboxes bbox index start stop )
+            compute_bih leaf_bound objects bboxes bbox index start stop)
           else
             let next = (dim + 1) mod Array.length extents in
-            if next = maxdim then Leaf {start; stop} else continue next
+            if next = maxdim then
+              let () = Format.printf "leaf {%d; %d}@." start stop in
+              Leaf { start; stop }
+            else continue next
         else if left_end = start then
           if half_dim < lmin then (
+            let () = Format.printf "pushing: focusing on right box@." in
             let bbox = Aabb.copy local_bbox in
             bbox.Aabb.mins.(dim) <- half_dim ;
-            compute_bih leaf_bound objects bboxes bbox index start stop )
+            compute_bih leaf_bound objects bboxes bbox index start stop)
           else
             let next = (dim + 1) mod Array.length extents in
-            if next = maxdim then Leaf {start; stop} else continue next
+            if next = maxdim then
+              let () = Format.printf "leaf {%d; %d}@." start stop in
+              Leaf { start; stop }
+            else continue next
         else
           let left_bbox = Aabb.copy local_bbox in
           left_bbox.Aabb.maxs.(dim) <- half_dim ;
@@ -183,16 +209,17 @@ struct
               (left_end - 1)
           in
           let right =
-            compute_bih
-              leaf_bound
-              objects
-              bboxes
-              right_bbox
-              index
+            compute_bih leaf_bound objects bboxes right_bbox index left_end stop
+          in
+          let () =
+            Format.printf
+              "left=%d, %d, right=%d, %d@."
+              start
+              (left_end - 1)
               left_end
               stop
           in
-          Node {axis = dim; leftclip = lclip; rightclip = rclip; left; right}
+          Node { axis = dim; leftclip = lclip; rightclip = rclip; left; right }
       in
       continue maxdim
 
@@ -203,10 +230,10 @@ struct
     let boxes = Array.map (E.extents state) objects in
     let box = Array.fold_left Aabb.join (Aabb.empty E.dim) boxes in
     let tree = compute_bih leaf_bound objects boxes box index 0 (len - 1) in
-    ({objects; index; boxes; box}, tree)
+    ({ objects; index; boxes; box }, tree)
 
   let collect_matching_objects state start stop pt acc =
-    let rec loop ({index; boxes; objects; _} as state) i acc =
+    let rec loop ({ index; boxes; objects; _ } as state) i acc =
       if i = stop then acc
       else if Aabb.mem pt boxes.(index.(i)) then
         loop state (i + 1) (objects.(index.(i)) :: acc)
@@ -217,9 +244,8 @@ struct
   let find_all_intersections pt state tree =
     let rec traverse pt state tree acc =
       match tree with
-      | Leaf {start; stop} ->
-          collect_matching_objects state start stop pt acc
-      | Node {axis; leftclip; rightclip; left; right} ->
+      | Leaf { start; stop } -> collect_matching_objects state start stop pt acc
+      | Node { axis; leftclip; rightclip; left; right } ->
           if pt.(axis) < leftclip then
             if pt.(axis) < rightclip then traverse pt state left acc
             else

@@ -16,33 +16,24 @@ let int =
 let spaces = skip_many (char ' ')
 
 let vertex =
-  char 'v'
-  >>= fun _ ->
-  spaces
-  >>= fun _ ->
-  sep_by spaces float
-  >>= fun fl ->
+  char 'v' >>= fun _ ->
+  spaces >>= fun _ ->
+  sep_by spaces float >>= fun fl ->
   match fl with
-  | [x; y; z] ->
-      return (Some (Vertex (x, y, z)))
-  | _ ->
-      failwith "vertex: error"
+  | [x; y; z] -> return (Some (Vertex (x, y, z)))
+  | _ -> failwith "vertex: error"
 
 let texture_coord =
-  string "vt" >>= fun _ -> spaces >>= fun _ -> sep_by spaces float
+  string "vt" >>= fun _ ->
+  spaces >>= fun _ -> sep_by spaces float
 
 let triangle =
-  char 'f'
-  >>= fun _ ->
-  spaces
-  >>= fun _ ->
-  sep_by spaces int
-  >>= fun il ->
+  char 'f' >>= fun _ ->
+  spaces >>= fun _ ->
+  sep_by spaces int >>= fun il ->
   match il with
-  | [x; y; z] ->
-      return (Some (Face (x, y, z)))
-  | _ ->
-      failwith "vertex: error"
+  | [x; y; z] -> return (Some (Face (x, y, z)))
+  | _ -> failwith "vertex: error"
 
 let comment = char '#' >>= fun _ -> return None
 
@@ -63,32 +54,32 @@ let load :
     scene:Scene.t ->
     t =
  fun ~filename ~scale ~material ~position ~rotation ~scene ->
+  if not (Sys.file_exists filename) then
+    Format.kasprintf invalid_arg "%s does not exist, exiting" filename ;
   let fd = open_in filename in
   let vertices = ref [] in
   let triangles = ref [] in
   let vcount = Array.length scene.vbuffer in
-  ( try
-      while true do
-        let line = input_line fd in
-        match parse_string wavefront_line line with
-        | Result.Error _ | Result.Ok None ->
-            ()
-        | Result.Ok (Some (Vertex (x, y, z))) ->
-            let v = V3.v x y z in
-            let v = V3.add (V3.ltr rotation (V3.smul scale v)) position in
-            vertices := v :: !vertices
-        | Result.Ok (Some (Face (i, j, k))) ->
-            let tri =
-              {
-                t1 = i - 1 + vcount;
-                t2 = j - 1 + vcount;
-                t3 = k - 1 + vcount;
-                mat = material;
-              }
-            in
-            triangles := tri :: !triangles
-      done
-    with End_of_file -> close_in fd ) ;
+  (try
+     while true do
+       let line = input_line fd in
+       match parse_string ~consume:Consume.Prefix wavefront_line line with
+       | Result.Error _ | Result.Ok None -> ()
+       | Result.Ok (Some (Vertex (x, y, z))) ->
+           let v = V3.v x y z in
+           let v = V3.add (V3.ltr rotation (V3.smul scale v)) position in
+           vertices := v :: !vertices
+       | Result.Ok (Some (Face (i, j, k))) ->
+           let tri =
+             { t1 = i - 1 + vcount;
+               t2 = j - 1 + vcount;
+               t3 = k - 1 + vcount;
+               mat = material
+             }
+           in
+           triangles := tri :: !triangles
+     done
+   with End_of_file -> close_in fd) ;
   let vbuffer = Array.of_list (List.rev !vertices) in
   let tbuffer = Array.of_list !triangles in
   let (scene, bbox) = add_object_to_scene scene vbuffer tbuffer [||] in
@@ -140,63 +131,60 @@ let load_ext :
   let vertices = ref [] in
   let triangles = ref [] in
   let vcount = Array.length scene.vbuffer in
-  ( try
-      while true do
-        let line = input_line fd in
-        if String.length line = 0 then ()
-        else if line.[0] = 'v' then
-          let v =
-            Scanf.sscanf (remove_head line) " %f %f %f " (fun x y z ->
-                let v = V3.v x y z in
-                V3.add (V3.ltr rotation (V3.smul scale v)) position)
-          in
-          vertices := v :: !vertices
-        else if line.[0] = 'f' then
-          let data = remove_head line in
-          let spaces = count_spaces data in
-          if spaces = 2 then
-            let f =
-              Scanf.sscanf
-                (remove_head line)
-                " %i/%i %i/%i %i/%i "
-                (fun t1 _ t2 _ t3 _ ->
-                  {
-                    t1 = t1 - 1 + vcount;
-                    t2 = t2 - 1 + vcount;
-                    t3 = t3 - 1 + vcount;
-                    mat = material;
-                  })
-            in
-            triangles := f :: !triangles
-          else if spaces = 3 then
-            let (f1, f2) =
-              Scanf.sscanf
-                (remove_head line)
-                " %i/%i %i/%i %i/%i %i/%i "
-                (fun t1 _ t2 _ t3 _ t4 _ ->
-                  let tri1 =
-                    {
-                      t1 = t1 - 1 + vcount;
-                      t2 = t2 - 1 + vcount;
-                      t3 = t3 - 1 + vcount;
-                      mat = material;
-                    }
-                  in
-                  let tri2 =
-                    {
-                      t1 = t2 - 1 + vcount;
-                      t2 = t3 - 1 + vcount;
-                      t3 = t4 - 1 + vcount;
-                      mat = material;
-                    }
-                  in
-                  (tri1, tri2))
-            in
-            triangles := f2 :: f1 :: !triangles
-          else failwith "too much points in face"
-        else ()
-      done
-    with End_of_file -> close_in fd ) ;
+  (try
+     while true do
+       let line = input_line fd in
+       if String.length line = 0 then ()
+       else if line.[0] = 'v' then
+         let v =
+           Scanf.sscanf (remove_head line) " %f %f %f " (fun x y z ->
+               let v = V3.v x y z in
+               V3.add (V3.ltr rotation (V3.smul scale v)) position)
+         in
+         vertices := v :: !vertices
+       else if line.[0] = 'f' then
+         let data = remove_head line in
+         let spaces = count_spaces data in
+         if spaces = 2 then
+           let f =
+             Scanf.sscanf
+               (remove_head line)
+               " %i/%i %i/%i %i/%i "
+               (fun t1 _ t2 _ t3 _ ->
+                 { t1 = t1 - 1 + vcount;
+                   t2 = t2 - 1 + vcount;
+                   t3 = t3 - 1 + vcount;
+                   mat = material
+                 })
+           in
+           triangles := f :: !triangles
+         else if spaces = 3 then
+           let (f1, f2) =
+             Scanf.sscanf
+               (remove_head line)
+               " %i/%i %i/%i %i/%i %i/%i "
+               (fun t1 _ t2 _ t3 _ t4 _ ->
+                 let tri1 =
+                   { t1 = t1 - 1 + vcount;
+                     t2 = t2 - 1 + vcount;
+                     t3 = t3 - 1 + vcount;
+                     mat = material
+                   }
+                 in
+                 let tri2 =
+                   { t1 = t2 - 1 + vcount;
+                     t2 = t3 - 1 + vcount;
+                     t3 = t4 - 1 + vcount;
+                     mat = material
+                   }
+                 in
+                 (tri1, tri2))
+           in
+           triangles := f2 :: f1 :: !triangles
+         else failwith "too much points in face"
+       else ()
+     done
+   with End_of_file -> close_in fd) ;
   let vbuffer = Array.of_list (List.rev !vertices) in
   let tbuffer = Array.of_list !triangles in
   let (scene, bbox) = add_object_to_scene scene vbuffer tbuffer [||] in

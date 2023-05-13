@@ -7,10 +7,8 @@ let create_shadow_ray normal hit light =
   let length = V3.norm vec in
   let ilength = 1.0 /. length in
   let dir = V3.smul ilength vec in
-  let reciprocal =
-    V3.v (1.0 /. V3.x dir) (1.0 /. V3.y dir) (1.0 /. V3.z dir)
-  in
-  ({origin = light.position; normal = dir; inormal = reciprocal}, ilength)
+  let reciprocal = V3.v (1.0 /. V3.x dir) (1.0 /. V3.y dir) (1.0 /. V3.z dir) in
+  ({ origin = light.position; normal = dir; inormal = reciprocal }, ilength)
 
 (* Recursive ray-tracing, whitted-style. Note that the shading is not a exactly standard
    Phong model (speculars not implemented). *)
@@ -22,7 +20,7 @@ let rec raytrace maxdepth scene tree tri_index ray =
     | Traverse.NoHit ->
         (* background_shader ray *)
         V3.zero
-    | Traverse.Hit (triangle_id, {t; _}) ->
+    | Traverse.Hit (triangle_id, { t; _ }) ->
         let tri_norm = scene.nbuffer.(triangle_id) in
         let material = scene.materials.(scene.tbuffer.(triangle_id).mat) in
         (* compute reflection and shadow rays *)
@@ -36,10 +34,9 @@ let rec raytrace maxdepth scene tree tri_index ray =
             (1.0 /. V3.z refl_dir)
         in
         let refl_ray =
-          {
-            origin = V3.add hitpoint tri_norm;
+          { origin = V3.add hitpoint tri_norm;
             normal = refl_dir;
-            inormal = reciprocal;
+            inormal = reciprocal
           }
         in
         let illumination = ref V3.zero in
@@ -59,8 +56,8 @@ let rec raytrace maxdepth scene tree tri_index ray =
           then
             let light_color =
               V3.smul
-                ( abs_float (V3.dot tri_norm shadow_ray.normal)
-                *. light.intensity *. ilength (* *. ilength *) )
+                (abs_float (V3.dot tri_norm shadow_ray.normal)
+                *. light.intensity *. ilength (* *. ilength *))
                 light.color
             in
             let result_color =
@@ -106,51 +103,44 @@ let renderfunc_bih xres yres scene tree tri_index =
 
 let main xres yres =
   let mat0 =
-    {
-      m_color = V3.v 0.2 0.15 0.2;
+    { m_color = V3.v 0.2 0.15 0.2;
       m_diffuse = 1.0;
       m_specular = 1.0;
-      m_shininess = 1.0;
+      m_shininess = 1.0
     }
   in
   let mat1 =
-    {
-      m_color = V3.v 0.5 0.15 0.2;
+    { m_color = V3.v 0.5 0.15 0.2;
       m_diffuse = 1.0;
       m_specular = 1.0;
-      m_shininess = 1.0;
+      m_shininess = 1.0
     }
   in
   let mat2 =
-    {
-      m_color = V3.v 0.1 0.5 0.15;
+    { m_color = V3.v 0.1 0.5 0.15;
       m_diffuse = 1.0;
       m_specular = 1.0;
-      m_shininess = 1.0;
+      m_shininess = 1.0
     }
   in
   let mirror =
-    {
-      m_color = V3.v 0.9 0.9 0.9;
+    { m_color = V3.v 0.9 0.9 0.9;
       m_diffuse = 1.0;
       m_specular = 1.0;
-      m_shininess = 1.0;
+      m_shininess = 1.0
     }
   in
   let scene =
-    {
-      Scene.empty with
+    { Scene.empty with
       ambient = V3.v 0.0 0.0 0.0;
       lights =
-        [|
-          {
-            position = V3.v ~-.10.0 45.0 30.0;
-            (*[| 0.0; 10.0; 30.0 |]; *)
-            intensity = 30.0;
-            color = V3.v 1.0 1.0 1.0;
-          };
+        [| { position = V3.v ~-.10.0 45.0 30.0;
+             (*[| 0.0; 10.0; 30.0 |]; *)
+             intensity = 30.0;
+             color = V3.v 1.0 1.0 1.0
+           }
         |];
-      materials = [|mat0; mat1; mat2; mirror|];
+      materials = [| mat0; mat1; mat2; mirror |]
     }
   in
   let scene =

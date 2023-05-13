@@ -1,6 +1,6 @@
 (executables
  (names raytracer)
- (libraries gg bih graphics angstrom))
+ (libraries gg bih graphics angstrom unix))
 
 (alias
  (name runtest)
